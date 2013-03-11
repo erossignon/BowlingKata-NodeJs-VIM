@@ -89,7 +89,7 @@ function! Wait(mil)
 endfunction 
 
 function! W()
-    return Wait(Rnd(60)+5)
+    return Wait(Rnd(6)+5)
 endfunction
 
 
@@ -152,10 +152,10 @@ endfunction
 
 function! bowlingKata#Step0()
   " delete all buffers
-  silent bufdo bdelete! 
-  silent execute "!del " . g:source_file 
-  silent execute "!del " . g:test_file  
-  silent execute "!del " . "c:\\tmp\\mocha.mytap"  
+  silent! bufdo bdelete! 
+  silent! execute "!del " . g:source_file 
+  silent! execute "!del " . g:test_file  
+  silent! execute "!del " . "c:\\tmp\\mocha.mytap"  
   only!
 
   call Pause("###### Starting Bowling KATA step 1")
@@ -169,7 +169,7 @@ function! bowlingKata#Step0()
   vsplit
   call Pause(" first test should succeed but with 0 test")
   
-  execute "normal \<C-W>=" 
+  "xx execute "normal \<C-W>=" 
 
   " create source file on the left 
   enew!
@@ -414,8 +414,6 @@ function! bowlingKata#Step5()
 
   execute "normal /return this._score\<CR>0C"            . SlowType("\n") . "\<esc>"
   call FakeTyping("\tvar _score = 0;\n")
-  call CenterScreenOnCursor()
-
   call FakeTyping("\tfor (var f = 0; f < 10 ; f ++ ) {\n")
   call FakeTyping("\t\t_score += this._roll[ f * 2 ] + this._roll[ f * 2 + 1 ];\n") 
   call FakeTyping("\t}\n")
@@ -424,10 +422,7 @@ function! bowlingKata#Step5()
 
   call Pause(" we change our mind, change is big, lets temporarly ignore newly created test")
   call bowlingKata#SwitchToTest()
-  match Error /xit(/
-  execute "0,$s/it(\'\s*should score 25/xit(\'should score 25/"
-  call CenterScreenOnCursor()
-  call Pause(" note that test has been excluded by adding a x to it")
+  call bowlingKata#disableTest("should score 25")
 
   call RunMocha()
   call Pause(" Test failed !  OOPS !")
@@ -445,9 +440,9 @@ function! bowlingKata#Step5()
 
   call RunMocha()
   call Pause(" Test succeeded  : => refactoring has worked !")
-  call Pause(" We can restore the test"); 
+  call Pause(" We can re-enable the test") 
   call bowlingKata#SwitchToTest()
-  execute "0,$s/xit(\'should score 25/it(\'should score 25/"
+  call bowlingKata#enableTest("should score 25")
   
   call RunMocha()
   call Pause(" Test is failing, lets fix it")
@@ -479,20 +474,21 @@ function! bowlingKata#Step6()
   " mark statement selection in visual mode
   execute "normal v%" 
   " pause so that we can see
-  call Pause("this is the code we want to put in a method")
+  call Pause("let's factor out this code by creating  a isSpare method")
 
   " yank code that calculate if frame is spare is
   execute "normal y"
+
   " replace with new code
   execute "normal gvc" . SlowType("( this.isSpare(f) )") . "\<esc>"
+  call Pause("")
   " now move above methode definition
   " search backward for prototype
   execute "normal ?prototype\<CR>0i\n\<up>"
-  call CenterScreenOnCursor()
-
   call FakeTyping("Game.prototype.isSpare = function ( f ) {\n\n}\n")
   " paste code that we yanked
   execute "normal \<up>\<up>i" . SlowType("\<tab>return ") . "\<esc>pA" .SlowType(";") . "\<esc>"
+  redraw 
 
   call RunMocha()
   call Pause(" Test is now OK , refactoring was successful")
@@ -503,7 +499,7 @@ endfunction
 function! bowlingKata#Step7()
 
   call bowlingKata#SwitchToTest()
-  echo "let's test score with a single STRIKE"
+  call Pause("let's create a test to verify score with a single STRIKE")
   
   call bowlingKata#SeekEndTest(3)
 
@@ -553,8 +549,7 @@ endfunction
 function! bowlingKata#Step9()
   
   call bowlingKata#SwitchToSource()
-  execute "normal /prototype.roll\<CR>"
-  call CenterScreenOnCursor()
+  execute "normal /prototype.roll\<CR>zz"
   execute "normal /this.round += 1;/e\<CR>"
   execute "normal A\n\<esc>"
   call FakeTyping("\tif ( pin == 10 ) {\n")
@@ -569,9 +564,11 @@ endfunction
 " refactor out the frameScore function
 function! bowlingKata#Step10()
   call bowlingKata#SwitchToSource()
-  
+  call Pause(" let's create a function to calculate the score of a single frame")  
   execute "0"
   execute "normal /prototype.score\<CR>\<up>0" 
+  execute "normal zz"
+  
   call FakeTyping("\nGame.prototype.frameScore = function ( f ) {\n\t// Calculate Frame score\n\n")
   call FakeTyping("}\n") 
   
@@ -606,7 +603,7 @@ function! bowlingKata#Step11()
   match Error /for(.*){.*}/
   execute "normal /for (var i=\<CR>"
   execute "normal V\<down>\<down>\"0ygv"
-  call Pause("let create a function for this code")
+  call Pause("let create a rollMany function for this code (DRY)")
   execute "normal gvc\<esc>"
   call FakeTyping("\t\tgame.rollMany(20,1);")
   execute "normal ?describe\<CR>A\n\<esc>"
@@ -617,7 +614,7 @@ function! bowlingKata#Step11()
   call FakeTyping("\t}") 
   
   call RunMocha()
-  call Pause("  All tests pass  : => let's keep refactoring")
+  call Pause("  All tests pass  : => let's use rollMany elsewhere")
   echo "" 
   
   " search for () block
@@ -637,17 +634,81 @@ function! bowlingKata#Step11()
 
 endfunction
 
+" replace the code
+" the pattern can contain %% which will be replaced with sub
+" for instance 
+"     to replace  this.roll[ f * 1]  with func(f)
+"     and         this.roll[ ( f + 1) * 1] with func((f+1))
+"  -  [ ] and *   are escaped
+"  -  single space are replaced with optional white space: \\s*  
+"
+function! bowlingKata#Refactor(oldCode, newCode, variation) 
+
+   call Pause(" replacing  " . a:oldCode . " with " . a:newCode . " where %% = " . a:variation)
+
+   let v = a:oldCode 
+   let v = substitute(v,"[","\\\\[","g")
+   let v = substitute(v,"]","\\\\]","g")
+   let v = substitute(v,"*","\\\\*","g")
+   let v = substitute(v," ","\\\\s*","g")
+   let v = substitute(v,"%%",a:variation,"g")
+   let v = "\\m" . v 
+  
+   "xx call Pause(" pattern = " . v)
+
+   let n = substitute(a:newCode,"%%",a:variation,"g")
+
+   " remove redundant parenthesis 
+   let n = substitute(n,"((","(","g")
+   let n = substitute(n,"))",")","g")
+   
+   " hightlight search
+   set hlsearch 
+   execute "normal /" . v . "\<CR>zz"
+   redraw
+   sleep 800 m
+   execute "s/" . v . "/" . n . "/g"
+   redraw
+   sleep 800 m
+   set nohlsearch 
+endfunction
+
+" refactor out framePinDown()
+function! bowlingKata#Step12()
+  call bowlingKata#SwitchToSource()
+  call Pause ("let's make the score calculation clearer (DRY) ! ")
+
+  call bowlingKata#Refactor("this._roll[ %% * 2 ] + this._roll[ %% * 2 + 1 ]","this.frameDownPin(%%)","f")
+  call bowlingKata#Refactor("this._roll[ %% * 2 ] + this._roll[ %% * 2 + 1 ]","this.frameDownPin(%%)","f")
+  call bowlingKata#Refactor("this._roll[ %% * 2 ] + this._roll[ %% * 2 + 1 ]","this.frameDownPin(%%)","( f + 1 )")
+
+  call Pause("this calculates the number of knocked down pin in a frame")
+
+  "  add new method  
+  execute "normal ?prototype.isStrike\<CR>\<up>"
+  call FakeTyping("\n/**\n")
+  call FakeTyping(" * returns the number of pins that have been knocked down in frame *f* \n")
+  call FakeTyping(" */\n")
+  call FakeTyping("Game.prototype.frameDownPin = function ( f ) { \n")
+  call FakeTyping("   return this._roll[ f * 2 ] + this._roll[ f * 2 + 1 ];\n")
+  call FakeTyping("}\n")
+
+  call RunMocha()
+  call Pause("  All tests pass  : => let's keep refactoring")
+  echo "" 
+
+endfunction
 
 
 " golden score test
-function! bowlingKata#Step12()
+function! bowlingKata#Step13()
 
   call bowlingKata#SwitchToTest()
-  echo "let's add the golden score test : 11 strikes ! "
+  call Pause ("let's add the golden score test : 12 strikes in a row ( 9 strikes + 3 strikes in last frame!) ")
   
   call bowlingKata#SeekEndTest(4)
-  call bowlingKata#AddNewTest_it("should score 300  after 11 STRIKES (golden score)")
-  call FakeTyping("\t\tgame.rollMany(11,10);\n")
+  call bowlingKata#AddNewTest_it("should score 300  after 12 STRIKES (golden score)")
+  call FakeTyping("\t\tgame.rollMany(12,10);\n")
   call FakeTyping("\t\tgame.score().should.equal(300);")
   
   call RunMocha()
@@ -655,11 +716,10 @@ function! bowlingKata#Step12()
 
   echo "" 
   call Pause(" In fact, we may be too anbitious, lets try a small test first")
-
-  match Error /xit(/
-  execute "0,$s/it(\'\s*should score 300/xit(\'should score 300/g"
-  redraw
+  
+  call bowlingKata#disableTest("should score 300")
   call RunMocha()
+
   call Pause(" Test failed  : => let's fix it")
 
   call bowlingKata#SeekEndTest(4)
@@ -679,7 +739,8 @@ function! bowlingKata#Step12()
 
 endfunction
 
-function! bowlingKata#Step13()
+" fix double strike issue
+function! bowlingKata#Step14()
 
   call bowlingKata#SwitchToSource()
   execute "0"
@@ -687,13 +748,59 @@ function! bowlingKata#Step13()
   call FakeTyping("\t\t\tif ( this.isStrike(f + 1) ) {\n")
   call FakeTyping("\t\t\t\t_score += 10 + this._roll[ ( f + 2 ) * 2 ] ;\n")
   call FakeTyping("\t\t\t} else {")
-  execute "normal \<down>>>\<esc>\<down>A\n\t\t\t}\n\<esc>"
+  execute "normal \<down>>>\<esc>A\n\t\t\t}\n\<esc>"
   
   call RunMocha()
   call Pause(" Test is now OK : => let's move on")
    
 endfunction
 
+function! bowlingKata#enableTest(start_of_should_line)
+  match Error /xit(/
+  execute "0,$s/xit(\'\s*" . a:start_of_should_line . "/it(\'" . a:start_of_should_line . "/g"
+  execute "normal zz"
+endfunction
+
+function! bowlingKata#disableTest(start_of_should_line)
+  match Error /xit(.*$/
+  execute "0,$s/it(\'\s*" . a:start_of_should_line . "/xit(\'" . a:start_of_should_line . "/g"
+  execute "normal zz"
+  call Pause(" note that test has been excluded by adding a x to it")
+endfunction
+
+" uncomment and fix golden score test
+function! bowlingKata#Step15()
+  " reenable test
+
+  call bowlingKata#SwitchToTest()
+  call bowlingKata#enableTest("should score 300")
+  redraw
+  call RunMocha()
+  call Pause("Test is still failing, let fix it")
+  call bowlingKata#SwitchToSource()
+  set hlsearch
+  execute "normal /if ( pin == 10/e\<CR>zz"
+  call FakeTyping(" && this.round<=18 ") 
+  set nosearch
+  call RunMocha()
+
+  execute "0"
+  set hlsearch
+  execute "normal /var _score = 0;/e\<CR>"
+  call FakeTyping("\n\tif ( f == 9 ) { // last frame is special \n")
+  call FakeTyping("\t\t_score += this._roll[ f * 2 + 2 ];\n")
+  call FakeTyping("\t} else ");
+  execute "normal J"
+  redraw
+  set nohlsearch
+  call RunMocha()
+
+endfunction
+
+" refactor further by extracting a frame bonus method
+function! bowlingKata#Step16()
+
+endfunction
 
 function! bowlingKata#All()
 
@@ -712,6 +819,8 @@ function! bowlingKata#All()
    call bowlingKata#Step11()
    call bowlingKata#Step12()
    call bowlingKata#Step13()
+   call bowlingKata#Step14()
+   call bowlingKata#Step15()
 
 endfunction
 
