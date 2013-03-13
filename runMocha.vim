@@ -3,17 +3,21 @@
 "
 
 
-let mocharesult="\\tmp\\mocha.mytap"
+let mocharesult="/tmp/mocha.mytap"
 let mochawin = -1
 
 function! RunMocha()
    " save current windows number
    let g:old_win = winnr()
-   " auto save document in active window
-   silent write!
+
+   " auto save document in active window (if necessary)
+   silent! write!
    
    if (g:mochawin == -1) 
+     silent! !mkdir /tmp/test
+     " delete previous buffer
      silent! execute "bd! " . g:mocharesult 
+     call delete(g:mocharesult)
      " create the test result at the bottom
      silent! execute "botright new"
      " slightly reduce the test output window
@@ -36,8 +40,17 @@ function! RunMocha()
    "xx silent! execute "write! " . g:mocharesult 
    
    " execute command and store result in current buffer 
-   cd /temp
-   read !mocha -R tap   
+   cd /tmp
+   read !mocha -R tap  
+
+
+   match Error /^not ok .*$/ 
+   match Question /^ok .*$/
+   match Special /^ok .*# SKIP -$/
+   match Question /^# fail 0$/
+   match Error /^# tests 0$/
+   highlight myTapOK ctermfg=Green ctermbg=Black
+ 
    " clean up the result by removing cluttering lines
    silent! 1,$g/Roaming/d  
    silent! 1,$g/node\.js/d 
@@ -47,7 +60,7 @@ function! RunMocha()
    if ( search("not ok") > 0 )
       silent! execute "/not ok/"
    else 
-      silent! execute "/# tests/"
+      silent! execute "/# tests/
    endif
    silent! execute "normal zz"
 

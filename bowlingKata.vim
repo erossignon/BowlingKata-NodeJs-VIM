@@ -11,7 +11,10 @@
 "
 "
 "
-source /projects/TDDExample2/pythonscripts/RunMocha.vim
+" echo input(" sfile = " . expand("<sfile>",""))
+" echo input(" Current file is ".expand("%:p:h"),"")
+
+execute "source " . expand("<sfile>:p:h") . "/runMocha.vim"
 let &makeprg="mocha -R tap"
 
 " Error: bar
@@ -107,12 +110,15 @@ function! SlowType(text)
 endfunction
 
 function! FakeTyping(text)
+   set nocindent
+   setlocal nocindent
    let chars = split(a:text, '.\zs')
    for c in chars
       execute "normal zza" . c . "\<esc>"
       call W()
       redraw
    endfor
+
 endfunction
 
 let bowlingKataPause = -1
@@ -127,16 +133,12 @@ function! Pause(msg)
   return ""
 endfunction
 
-" set auto ident on
-" set ai!
-" set tab size
-" set ts=4
 set makeprg=mocha\ -R\ tap
 
-let source_file="c:\\temp\\Bowling.js"
-let test_file="c:\\temp\\test\\Bowling_test.js"
+let source_file="/tmp/Bowling.js"
+let test_file="/tmp/test/Bowling_test.js"
 
-let s:triggerSnippet =  "\<C-R>=TriggerSnippet()\<CR>"
+let s:triggerSnippet =  "\<C-R>=snipMate#TriggerSnippet()\<CR>"
 
 
 function! bowlingKata#AddNewTest_it(description)
@@ -150,9 +152,30 @@ function! bowlingKata#AddNewTest_it(description)
   execute "normal 0C\<esc>"
 endfunction
 
+function! bowlingKata#prepareBuffer()
+  setlocal expandtab
+  setlocal shiftwidth=2
+  setlocal softtabstop=2
+  match none
+  setlocal comments-=://
+  setlocal comments+=f://
+  setlocal formatoptions-=croql
+  setlocal noautoindent
+  setlocal nocindent
+  setlocal nosmartindent
+  setlocal smarttab 
+  setlocal tabstop=2
+  setlocal indentexpr=
+  set nocindent
+endfunction
+
 function! bowlingKata#Step0()
   " delete all buffers
+  let g:mochawin = -1 " reset mocha
   silent! bufdo bdelete! 
+  silent! execute "!rm " . g:source_file 
+  silent! execute "!rm " . g:test_file  
+  silent! execute "!rm " . "/tmp/mocha.mytap"  
   silent! execute "!del " . g:source_file 
   silent! execute "!del " . g:test_file  
   silent! execute "!del " . "c:\\tmp\\mocha.mytap"  
@@ -173,37 +196,14 @@ function! bowlingKata#Step0()
 
   " create source file on the left 
   enew!
-  set expandtab
-  set shiftwidth=2
-  set softtabstop=2
-  match none
-  setlocal comments-=://
-  setlocal comments+=f://
-  setlocal formatoptions-=croql
-  setlocal noautoindent
-  setlocal nocindent
-  setlocal nosmartindent
-  setlocal indentexpr=
-
-
+  call bowlingKata#prepareBuffer()
   execute "write! " . g:source_file
 
   " create test file on the right
   execute "normal \<C-W>\<Right>"  
+
   enew!
-  set expandtab
-  set shiftwidth=2
-  set softtabstop=2
-  match none
-  setlocal comments-=://
-  setlocal comments+=f://
-  setlocal formatoptions-=croql
-  setlocal noautoindent
-  setlocal nocindent
-  setlocal nosmartindent
-  setlocal indentexpr=
-
-
+  call bowlingKata#prepareBuffer()
   execute "write! " . g:test_file 
 
   call FakeTyping("var fs = require(\"fs\");\n")
@@ -331,11 +331,12 @@ function! bowlingKata#Step2()
  
   call RunMocha()
   call Pause(" Test succeeded  : => let's refactor")
-
+  echo ""
 endfunction
 
 " refactoring : pull out construction in beforeEach 
 function! bowlingKata#Step3()
+
   call bowlingKata#SwitchToTest()
 
   " highlight in red what we are refactoring
@@ -364,6 +365,7 @@ function! bowlingKata#Step3()
   " remove  var 
   s/var //
 
+  redraw
   "   execute "normal 0C" . SlowType("    game = new Bowling.Game();") . "\<esc>"
   
   call RunMocha()
@@ -396,7 +398,7 @@ function! bowlingKata#Step4()
  
   call RunMocha()
   call Pause(" Test failed  : => let's fix it")
-  echo "" 
+
 endfunction
 
 function! CenterScreenOnCursor()
@@ -800,6 +802,81 @@ endfunction
 " refactor further by extracting a frame bonus method
 function! bowlingKata#Step16()
 
+  call bowlingKata#SwitchToTest()
+
+  call Pause("Lets  test the behavior with invalid arguments passed to roll") 
+ 
+  call bowlingKata#SeekEndTest(4)
+  call bowlingKata#AddNewTest_it("should prevent to pass invalid number of pin to roll")
+  call FakeTyping("\t\t(function() { game.roll(-1); }).should.throw();\n")
+
+  call RunMocha()
+  call Pause(" Test is failing  : => let's add the protection code")
+endfunction
+ 
+" protect against negative value in rolls
+function! bowlingKata#Step17()
+  call bowlingKata#SwitchToSource()
+  " locate the start of the roll method
+  execute "normal /prototype.roll\<CR>A\n\<esc>"
+  
+  " append some checks
+  call FakeTyping("\tif ( pin < 0 || pin > 10) {\n")
+  call FakeTyping("\t\tthrow new Error('invalid number of pin');\n")
+  call FakeTyping("\t}\n")
+
+  call RunMocha()
+  call Pause(" Test is OK   ")
+
+endfunction
+
+function! bowlingKata#Step18()
+ 
+  call bowlingKata#SwitchToTest()
+  call bowlingKata#SeekEndTest(5)
+  call bowlingKata#AddNewTest_it("should check that no more than 10 pins can be knocked down in a frame")
+  call FakeTyping("\t\tgame.roll(6);\n")
+  call FakeTyping("\t\t(function() {\n")
+  call FakeTyping("\t\t\tgame.roll(5); // 6+ 5 = 11 => Should thow !\n")
+  call FakeTyping("\t\t}).should.throw('number of pins cannot exceed 4');")
+
+  call RunMocha()
+  call Pause(" Test has failed    ")
+endfunction
+
+function! bowlingKata#Step19()
+
+  call bowlingKata#SwitchToSource()
+  " locate the start of the roll method
+  execute "normal /prototype.roll\<CR>A\n\<esc>"
+  call FakeTyping("\tvar maxAllowedPin = 10 ; ")
+  execute "normal \<down>"
+  execute ".,.+3s/pin > 10/pin > maxAllowedPin"
+  execute "normal \<up>A\n\<esc>"
+  redraw 
+  call FakeTyping("\tvar currentFrame = Math.ceil( ( this.round - 1 ) / 2 ) ;\n") 
+  call FakeTyping("\tif ( this.round % 2 == 1 ) {\n")
+  call FakeTyping("\t\tmaxAllowedPin = 10 - this._roll[ currentFrame * 2 ];\n") 
+  call FakeTyping("\t}\n")
+  " replace 10 wiht
+  call RunMocha()
+  call Pause(" we have two failing tests !, let fix the new one first")
+  call Pause(" we need  to massage the error message") 
+  execute ".,+10s/'invalid number of pin'/'number of pins cannot exceed ' + maxAllowedPin"
+  call RunMocha()
+  call Pause(" we have one old test failing  : this is a regression !")
+  call Pause("  Ah ! of course ! our boundary check is  not suitable for mast frame that can have 3 rolls of 10 ! ")
+  " locate the insertion point
+  execute "normal ?this.round % 2 == 1?e\<CR>"
+  call FakeTyping(" && currentFrame != 9")
+
+  call RunMocha()
+  call Pause(" Test is OK   ")
+  
+endfunction
+"  add some protection against 
+function! bowlingKata#Step20()
+   
 endfunction
 
 function! bowlingKata#All()
