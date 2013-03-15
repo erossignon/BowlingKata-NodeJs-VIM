@@ -9,7 +9,8 @@
 " to run from the vim command line:
 "
 "
-"
+"  rules : http://www.ihsa.org/documents/bw/BW-Rulebook.pdf
+"          http://en.wikipedia.org/wiki/Ten-pin_bowling
 "
 " echo input(" sfile = " . expand("<sfile>",""))
 " echo input(" Current file is ".expand("%:p:h"),"")
@@ -830,6 +831,7 @@ function! bowlingKata#Step17()
 
 endfunction
 
+" add a extra test for second roll in a frame 
 function! bowlingKata#Step18()
  
   call bowlingKata#SwitchToTest()
@@ -844,6 +846,7 @@ function! bowlingKata#Step18()
   call Pause(" Test has failed    ")
 endfunction
 
+" fix
 function! bowlingKata#Step19()
 
   call bowlingKata#SwitchToSource()
@@ -874,9 +877,18 @@ function! bowlingKata#Step19()
   call Pause(" Test is OK   ")
   
 endfunction
-"  add some protection against 
+
+"   some refactoring isLastFrame 
 function! bowlingKata#Step20()
-   
+   call bowlingKata#SwitchToSource()
+   call Pause(" Let's refactor and create a isLastFrame method")
+   execute "normal /prototype.roll\<CR>0i\n\<esc>\<up>zz"
+   call FakeTyping("Game.prototype.isLastFrame = function ( f ) {\n")
+   call FakeTyping("  return ( f === 9 );\n")
+   call FakeTyping("};\n")
+   call bowlingKata#Refactor("currentFrame != 9","! this.isLastFrame( currentFrame )","")
+   call RunMocha()
+   call Pause(" tests are still OK") 
 endfunction
 
 function! bowlingKata#All()
@@ -898,6 +910,84 @@ function! bowlingKata#All()
    call bowlingKata#Step13()
    call bowlingKata#Step14()
    call bowlingKata#Step15()
+   call bowlingKata#Step16()
+   call bowlingKata#Step17()
+   call bowlingKata#Step18()
+   call bowlingKata#Step19()
+   call bowlingKata#Step20()
 
 endfunction
 
+function! bowlingKata#BDDStep0()
+  " https://github.com/alexscordellis/sensei-bowling-game/blob/master/features/score_game.feature
+  silent! call mkdir("/tmp/test/features/steps")
+  bd! bowlingGame_Score.feature
+  new /tmp/test/features/bowlingGame_Score.feature
+  0,$d
+  
+  call FakeTyping("Feature: Score a bowling game\n") 
+  call FakeTyping("\tAs a 10-pin bower\n")
+  call FakeTyping("\tI want a program to calculate my bowling score\n")
+  call FakeTyping("\tSo it can save me from doing it in my head\n")
+  call FakeTyping("\n")
+  call FakeTyping("\tScenario: Gutter Game\n")
+  call FakeTyping("\t\tGiven I have started a new game\n")
+  call FakeTyping("\t\tWhen I roll 20 gutter balls\n")
+  call FakeTyping("\t\tThen my score is 0 points\n")
+  call FakeTyping("\n")
+  call FakeTyping("\tScenario: Game with one spare\n")
+  call FakeTyping("\t\tGiven I have started a new game\n")
+  call FakeTyping("\t\tWhen I knock over 8 pins\n")
+  call FakeTyping("\t\tAnd I knock over 2 pins\n")
+  call FakeTyping("\t\tAnd I knock over 3 pins\n")
+  call FakeTyping("\t\tAnd I roll 17 gutter balls\n")
+  call FakeTyping("\t\tThen my score is 16 points\n")
+  
+  write!
+
+  silent! call mkdir("/tmp/test/features/steps","p")
+  bd! bowlingGame_Score_steps.js
+  new /tmp/test/features/steps/bowlingGame_Score_steps.js
+  write!
+  0,$d
+  
+  call FakeTyping("var Bowling = require('../../../Bowling');\n")
+  call FakeTyping("var should = require('should');\n")
+  call FakeTyping("var myStepDefinitionsWrapper = function () {\n")
+  call FakeTyping("\n")
+  call FakeTyping("\n")
+  call FakeTyping("};\n")
+  call FakeTyping("module.exports = myStepDefinitionsWrapper;\n")
+
+  execute "normal \<up>\<up>\<up>"
+
+  call FakeTyping("  this.Given(/^I have started a new game$/, function(callback) {\n\tcallback.pending();\n  });\n")
+  execute "normal ?pending\<CR>0C\<esc>"
+  call FakeTyping("    this.game = new Bowling.Game();\n")
+  call FakeTyping("    callback();\n")
+  execute "normal \<down>\<down>0" 
+
+  call FakeTyping("  this.When(/^I roll (\\d+) gutter balls/, function(n,callback) {\n\tcallback.pending();\n  });\n")
+  execute "normal ?pending\<CR>0C\<esc>"
+  call FakeTyping("    for( var i = 0 ; i < n ; i += 1 ) { this.game.roll(0); } \n")
+  call FakeTyping("    callback();\n")
+  execute "normal \<down>\<down>0" 
+
+
+  call FakeTyping("  this.When(/^I knock over (\\d+) pins*$/, function(n,callback) {\n\tcallback.pending();\n  });\n")
+  execute "normal ?pending\<CR>0C\<esc>"
+  call FakeTyping("    this.game.roll(parseInt(n));\n")
+  call FakeTyping("    callback();\n")
+  execute "normal \<down>\<down>0" 
+
+  call FakeTyping("  this.Then(/^my score is (\\d+) points$/, function (expected_score, callback) {\n\tcallback.pending();\n  });\n")
+  execute "normal ?pending\<CR>0C\<esc>"
+  call FakeTyping("    this.game.score().should.equal(parseInt(expected_score));\n")
+  call FakeTyping("    callback();\n")
+  execute "normal \<down>\<down>0" 
+  write!
+
+  cd /tmp/test
+  botright new
+  read !cucumber-js 
+endfunction
