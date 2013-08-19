@@ -52,3 +52,5 @@ Et voilà!
 <img src="http://img.youtube.com/vi/7Op4NJIcz1M/0.jpg" 
 alt="BowlingKata" width="640" height="380" border="10" /></a>
 
+<iframe width="640" height="360" src="http://www.youtube.com/embed/7Op4NJIcz1M?feature=player_detailpage" frameborder="0" allowfullscreen></iframe>
+
