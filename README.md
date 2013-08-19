@@ -48,6 +48,7 @@ filetype on
 
 Et voilà!
 
-<a href="http://www.youtube.com/watch?feature=player_embedded&v=7Op4NJIcz1M" target="_blank"><img src="http://img.youtube.com/vi/swUPSa2zyrY/0.jpg" 
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=7Op4NJIcz1M" target="_blank">
+<img src="http://img.youtube.com/vi/7Op4NJIcz1M/0.jpg" 
 alt="BowlingKata" width="640" height="380" border="10" /></a>
 
