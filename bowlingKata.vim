@@ -139,7 +139,7 @@ set makeprg=mocha\ -R\ tap
 let source_file="/tmp/Bowling.js"
 let test_file="/tmp/test/Bowling_test.js"
 
-let s:triggerSnippet =  "\<C-R>=snipMate#TriggerSnippet()\<CR>"
+let s:triggerSnippet =  "\<C-R>=TriggerSnippet()\<CR>"
 
 
 function! bowlingKata#AddNewTest_it(description)
