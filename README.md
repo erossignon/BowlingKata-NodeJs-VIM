@@ -36,13 +36,13 @@ filetype on
 
 
    
-##### Launching run
+##### Launching the vim script
 
- 1. start vim
- 2. type the following commands:
+ 1. start vim in the BowlingKata-NodeJs-VIM folder
+ 2. type the following vim commands:
  
     ```
-    :source <path>/bowlingKata.vim
+    :source bowlingKata.vim
     :call bownlingKata#All()
     ```
 
